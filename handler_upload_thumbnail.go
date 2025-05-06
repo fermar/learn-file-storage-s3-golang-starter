@@ -1,6 +1,7 @@
 package main
 
 import (
+	"encoding/base64"
 	"fmt"
 	"io"
 	"net/http"
@@ -32,8 +33,6 @@ func (cfg *apiConfig) handlerUploadThumbnail(w http.ResponseWriter, r *http.Requ
 
 	fmt.Println("uploading thumbnail for video", videoID, "by user", userID)
 
-	// TODO: implement the upload here
-
 	const maxMemory = 10 << 20
 	r.ParseMultipartForm(maxMemory)
 	file, header, err := r.FormFile("thumbnail")
@@ -48,6 +47,13 @@ func (cfg *apiConfig) handlerUploadThumbnail(w http.ResponseWriter, r *http.Requ
 		respondWithError(w, http.StatusBadRequest, "Unable to read form file", err)
 		return
 	}
+
+	thumbURL := fmt.Sprintf(
+		"data:%s;base64,%s",
+		contentType,
+		base64.StdEncoding.EncodeToString(thumbBytes),
+	)
+
 	videoMetadata, err := cfg.db.GetVideo(videoID)
 	if err != nil {
 		respondWithError(
@@ -61,9 +67,9 @@ func (cfg *apiConfig) handlerUploadThumbnail(w http.ResponseWriter, r *http.Requ
 		respondWithError(w, http.StatusUnauthorized, "Usuario no autorizado", err)
 		return
 	}
-	videoThumbnails[videoID] = thumbnail{data: thumbBytes, mediaType: contentType}
-	thumbUrl := fmt.Sprintf("http://10.10.111.3:8091/api/thumbnails/%s", videoID.String())
-	videoMetadata.ThumbnailURL = &thumbUrl
+	// videoThumbnails[videoID] = thumbnail{data: thumbBytes, mediaType: contentType}
+	// thumbUrl := fmt.Sprintf("http://10.10.111.3:8091/api/thumbnails/%s", videoID.String())
+	videoMetadata.ThumbnailURL = &thumbURL
 	err = cfg.db.UpdateVideo(videoMetadata)
 	if err != nil {
 		respondWithError(
