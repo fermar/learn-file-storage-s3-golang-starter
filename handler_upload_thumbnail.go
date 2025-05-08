@@ -3,6 +3,7 @@ package main
 import (
 	"fmt"
 	"io"
+	"mime"
 	"net/http"
 	"os"
 	"path/filepath"
@@ -42,9 +43,24 @@ func (cfg *apiConfig) handlerUploadThumbnail(w http.ResponseWriter, r *http.Requ
 		return
 	}
 	defer file.Close()
-	contentType := header.Header.Get("Content-Type")
+	ctHeader := header.Header.Get("Content-Type")
+	ct, _, err := mime.ParseMediaType(ctHeader)
+	if err != nil {
+		respondWithError(
+			w,
+			http.StatusInternalServerError,
+			"Unable to identificar content type header",
+			err,
+		)
+		return
+	}
 
-	fileExt := getFileExtension(contentType)
+	if !validContentTypes(ct) {
+		respondWithError(w, http.StatusBadRequest, "content type invalido", nil)
+		return
+	}
+
+	fileExt := getFileExtension(ct)
 	videoFileName := fmt.Sprintf("%s.%s", videoID.String(), fileExt)
 	videoFileName = filepath.Join(cfg.assetsRoot, videoFileName)
 	videoFile, err := os.Create(videoFileName)
@@ -98,6 +114,18 @@ func (cfg *apiConfig) handlerUploadThumbnail(w http.ResponseWriter, r *http.Requ
 	}
 	// respondWithJSON(w, http.StatusOK, struct{}{})
 	respondWithJSON(w, http.StatusOK, videoMetadata)
+}
+
+func validContentTypes(ct string) bool {
+	vct := map[string]bool{
+		"image/jpeg": true,
+		"image/png":  true,
+	}
+	valid, ok := vct[ct]
+	if ok {
+		return valid
+	}
+	return false
 }
 
 func getFileExtension(ct string) string {
