@@ -1,10 +1,11 @@
 package main
 
 import (
-	"encoding/base64"
 	"fmt"
 	"io"
 	"net/http"
+	"os"
+	"path/filepath"
 
 	"github.com/google/uuid"
 
@@ -42,17 +43,27 @@ func (cfg *apiConfig) handlerUploadThumbnail(w http.ResponseWriter, r *http.Requ
 	}
 	defer file.Close()
 	contentType := header.Header.Get("Content-Type")
-	thumbBytes, err := io.ReadAll(file)
+
+	fileExt := getFileExtension(contentType)
+	videoFileName := fmt.Sprintf("%s.%s", videoID.String(), fileExt)
+	videoFileName = filepath.Join(cfg.assetsRoot, videoFileName)
+	videoFile, err := os.Create(videoFileName)
 	if err != nil {
-		respondWithError(w, http.StatusBadRequest, "Unable to read form file", err)
+		respondWithError(w, http.StatusInternalServerError, "Unable to crear archivo de video", err)
 		return
 	}
+	io.Copy(videoFile, file)
+	// thumbBytes, err := io.ReadAll(file)
+	// if err != nil {
+	// 	respondWithError(w, http.StatusBadRequest, "Unable to read form file", err)
+	// 	return
+	// }
 
-	thumbURL := fmt.Sprintf(
-		"data:%s;base64,%s",
-		contentType,
-		base64.StdEncoding.EncodeToString(thumbBytes),
-	)
+	// thumbURL := fmt.Sprintf(
+	// 	"data:%s;base64,%s",
+	// 	contentType,
+	// 	base64.StdEncoding.EncodeToString(thumbBytes),
+	// )
 
 	videoMetadata, err := cfg.db.GetVideo(videoID)
 	if err != nil {
@@ -69,6 +80,12 @@ func (cfg *apiConfig) handlerUploadThumbnail(w http.ResponseWriter, r *http.Requ
 	}
 	// videoThumbnails[videoID] = thumbnail{data: thumbBytes, mediaType: contentType}
 	// thumbUrl := fmt.Sprintf("http://10.10.111.3:8091/api/thumbnails/%s", videoID.String())
+	thumbURL := fmt.Sprintf(
+		"http://10.10.111.3:%s/assets/%s.%s",
+		cfg.port,
+		videoID.String(),
+		fileExt,
+	)
 	videoMetadata.ThumbnailURL = &thumbURL
 	err = cfg.db.UpdateVideo(videoMetadata)
 	if err != nil {
@@ -81,4 +98,17 @@ func (cfg *apiConfig) handlerUploadThumbnail(w http.ResponseWriter, r *http.Requ
 	}
 	// respondWithJSON(w, http.StatusOK, struct{}{})
 	respondWithJSON(w, http.StatusOK, videoMetadata)
+}
+
+func getFileExtension(ct string) string {
+	dicExtension := map[string]string{
+		"image/jpeg": "jpg",
+		"image/png":  "png",
+		"video/mp4":  "mp4",
+	}
+	ext, ok := dicExtension[ct]
+	if ok {
+		return ext
+	}
+	return "bin"
 }
