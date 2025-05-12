@@ -1,6 +1,8 @@
 package main
 
 import (
+	"crypto/rand"
+	"encoding/base64"
 	"fmt"
 	"io"
 	"mime"
@@ -61,9 +63,12 @@ func (cfg *apiConfig) handlerUploadThumbnail(w http.ResponseWriter, r *http.Requ
 	}
 
 	fileExt := getFileExtension(ct)
-	videoFileName := fmt.Sprintf("%s.%s", videoID.String(), fileExt)
-	videoFileName = filepath.Join(cfg.assetsRoot, videoFileName)
-	videoFile, err := os.Create(videoFileName)
+	key := make([]byte, 32)
+	rand.Read(key)
+	// fileName:=base64.RawURLEncoding.EncodeToString(key)
+	videoFileName := fmt.Sprintf("%s.%s", base64.RawURLEncoding.EncodeToString(key), fileExt)
+	fullVideoPathName := filepath.Join(cfg.assetsRoot, videoFileName)
+	videoFile, err := os.Create(fullVideoPathName)
 	if err != nil {
 		respondWithError(w, http.StatusInternalServerError, "Unable to crear archivo de video", err)
 		return
@@ -94,13 +99,14 @@ func (cfg *apiConfig) handlerUploadThumbnail(w http.ResponseWriter, r *http.Requ
 		respondWithError(w, http.StatusUnauthorized, "Usuario no autorizado", err)
 		return
 	}
+
 	// videoThumbnails[videoID] = thumbnail{data: thumbBytes, mediaType: contentType}
 	// thumbUrl := fmt.Sprintf("http://10.10.111.3:8091/api/thumbnails/%s", videoID.String())
 	thumbURL := fmt.Sprintf(
-		"http://10.10.111.3:%s/assets/%s.%s",
+		"http://10.10.111.3:%s/assets/%s",
 		cfg.port,
-		videoID.String(),
-		fileExt,
+		// videoID.String(),
+		videoFileName,
 	)
 	videoMetadata.ThumbnailURL = &thumbURL
 	err = cfg.db.UpdateVideo(videoMetadata)
