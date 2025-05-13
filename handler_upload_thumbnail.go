@@ -57,7 +57,7 @@ func (cfg *apiConfig) handlerUploadThumbnail(w http.ResponseWriter, r *http.Requ
 		return
 	}
 
-	if !validContentTypes(ct) {
+	if !validImageContentTypes(ct) {
 		respondWithError(w, http.StatusBadRequest, "content type invalido", nil)
 		return
 	}
@@ -122,7 +122,7 @@ func (cfg *apiConfig) handlerUploadThumbnail(w http.ResponseWriter, r *http.Requ
 	respondWithJSON(w, http.StatusOK, videoMetadata)
 }
 
-func validContentTypes(ct string) bool {
+func validImageContentTypes(ct string) bool {
 	vct := map[string]bool{
 		"image/jpeg": true,
 		"image/png":  true,
