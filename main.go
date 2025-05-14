@@ -114,6 +114,20 @@ func main() {
 		log.Fatalf("Couldn't create assets directory: %v", err)
 	}
 
+	// aspect, err := GetVideoAspectRatio("./samples/boots-video-horizontal.mp4")
+	// if err != nil {
+	// 	slog.Warn("get aspect ratio", "error", err)
+	// }
+	//
+	// fmt.Printf("aspect: %s\n", aspect)
+	//
+	// aspect, err = GetVideoAspectRatio("./samples/boots-video-vertical.mp4")
+	// if err != nil {
+	// 	slog.Warn("get aspect ratio", "error", err)
+	// }
+	//
+	// fmt.Printf("aspect: %s\n", aspect)
+	//
 	mux := http.NewServeMux()
 	appHandler := http.StripPrefix("/app", http.FileServer(http.Dir(filepathRoot)))
 	mux.Handle("/app/", appHandler)

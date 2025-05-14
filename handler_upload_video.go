@@ -5,6 +5,7 @@ import (
 	"encoding/base64"
 	"fmt"
 	"io"
+	"log/slog"
 	"mime"
 	"net/http"
 	"os"
@@ -94,7 +95,26 @@ func (cfg *apiConfig) handlerUploadVideo(w http.ResponseWriter, r *http.Request)
 	fileExt := getFileExtension(ct)
 	key := make([]byte, 32)
 	rand.Read(key)
-	videoFileName := fmt.Sprintf("%s.%s", base64.RawURLEncoding.EncodeToString(key), fileExt)
+	// aspect, err := GetVideoAspectRatio(fmt.Sprintf("%s/tubely.upload.mp4", os.TempDir()))
+	aspect, err := GetVideoAspectRatio(videoFile.Name())
+	if err != nil {
+		slog.Warn("Get Aspect", "error", err)
+	}
+
+	aspPrefix := "other"
+	if aspect == "16:9" {
+		aspPrefix = "landscape"
+	}
+
+	if aspect == "9:16" {
+		aspPrefix = "portrait"
+	}
+	videoFileName := fmt.Sprintf(
+		"%s/%s.%s",
+		aspPrefix,
+		base64.RawURLEncoding.EncodeToString(key),
+		fileExt,
+	)
 	objectParams := s3.PutObjectInput{
 		Key:         &videoFileName,
 		Bucket:      &cfg.s3Bucket,
