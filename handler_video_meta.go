@@ -2,6 +2,7 @@ package main
 
 import (
 	"encoding/json"
+	"log/slog"
 	"net/http"
 
 	"github.com/google/uuid"
@@ -95,6 +96,16 @@ func (cfg *apiConfig) handlerVideoGet(w http.ResponseWriter, r *http.Request) {
 		respondWithError(w, http.StatusNotFound, "Couldn't get video", err)
 		return
 	}
+	video, err = cfg.dbVideoToSignedVideo(video)
+	if err != nil {
+		respondWithError(
+			w,
+			http.StatusInternalServerError,
+			"Unable to crear signed URL en S3",
+			err,
+		)
+		return
+	}
 
 	respondWithJSON(w, http.StatusOK, video)
 }
@@ -115,6 +126,20 @@ func (cfg *apiConfig) handlerVideosRetrieve(w http.ResponseWriter, r *http.Reque
 	if err != nil {
 		respondWithError(w, http.StatusInternalServerError, "Couldn't retrieve videos", err)
 		return
+	}
+
+	for i, video := range videos {
+		slog.Warn("get videos by userID", "i", i, "video URL", video.VideoURL)
+		videos[i], err = cfg.dbVideoToSignedVideo(video)
+		if err != nil {
+			respondWithError(
+				w,
+				http.StatusInternalServerError,
+				"Unable to crear signed URL en S3",
+				err,
+			)
+			return
+		}
 	}
 
 	respondWithJSON(w, http.StatusOK, videos)

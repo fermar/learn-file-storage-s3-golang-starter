@@ -2,12 +2,20 @@ package main
 
 import (
 	"bytes"
+	"context"
 	"encoding/json"
+	"fmt"
 	"log/slog"
 	"os/exec"
+	"strings"
+	"time"
+
+	"github.com/aws/aws-sdk-go-v2/service/s3"
+
+	"github.com/bootdotdev/learn-file-storage-s3-golang-starter/internal/database"
 )
 
-func GetVideoAspectRatio(filepath string) (string, error) {
+func getVideoAspectRatio(filepath string) (string, error) {
 	type ffprobeOutput struct {
 		Streams []struct {
 			Index              int    `json:"index"`
@@ -133,4 +141,80 @@ func GetVideoAspectRatio(filepath string) (string, error) {
 		return "9:16", nil
 	}
 	return "other", nil
+}
+
+func processVideoForFastStart(filepath string) (string, error) {
+	procFilepath := fmt.Sprintf("%s.processing", filepath)
+	cmd := exec.Command(
+		"ffmpeg",
+		"-i",
+		filepath,
+		"-c",
+		"copy",
+		"-movflags",
+		"faststart",
+		"-f",
+		"mp4",
+		procFilepath,
+	)
+
+	err := cmd.Run()
+	if err != nil {
+		return "", err
+	}
+	return procFilepath, nil
+}
+
+func generatePresignedURL(
+	s3Client *s3.Client,
+	bucket, key string,
+	expireTime time.Duration,
+) (string, error) {
+	preSignCli := s3.NewPresignClient(s3Client)
+	pscliParams := s3.GetObjectInput{Bucket: &bucket, Key: &key}
+	pshttpr, err := preSignCli.PresignGetObject(
+		context.Background(),
+		&pscliParams,
+		s3.WithPresignExpires(expireTime),
+	)
+	if err != nil {
+		return "", err
+	}
+	return pshttpr.URL, nil
+}
+
+func (cfg *apiConfig) dbVideoToSignedVideo(video database.Video) (database.Video, error) {
+	slog.Warn(
+		"entreada a dbvideo to signed video",
+		"video URL",
+		video.VideoURL,
+	)
+	if video.VideoURL == nil {
+		return video, nil
+	}
+
+	bucketKey := strings.Split(*video.VideoURL, ",")
+
+	slog.Warn(
+		"entreada a dbvideo to signed video",
+		"bucketkey",
+		bucketKey,
+	)
+
+	if len(bucketKey) == 2 {
+		psVideoURL, err := generatePresignedURL(
+			cfg.s3Client,
+			bucketKey[0],
+			bucketKey[1],
+			2*time.Minute,
+		)
+		if err != nil {
+			return video, err
+		}
+
+		retVideo := video
+		retVideo.VideoURL = &psVideoURL
+		return retVideo, nil
+	}
+	return database.Video{}, nil
 }

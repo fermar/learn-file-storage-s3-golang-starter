@@ -86,17 +86,36 @@ func (cfg *apiConfig) handlerUploadVideo(w http.ResponseWriter, r *http.Request)
 		respondWithError(w, http.StatusInternalServerError, "Unable to crear archivo de video", err)
 		return
 	}
-	defer os.Remove(videoFile.Name())
-	defer videoFile.Close()
 
 	io.Copy(videoFile, file)
 	videoFile.Seek(0, io.SeekStart)
+	videoFileFS, err := processVideoForFastStart(videoFile.Name())
+	if err != nil {
+		slog.Warn("no se pudo generar FastStart", "error", err)
+	}
+
+	videoFile.Close()
+	os.Remove(videoFile.Name())
+
+	videoFile, err = os.Open(videoFileFS)
+	if err != nil {
+		slog.Warn("no se pudo abrir archivo FastStart", "error", err)
+		respondWithError(
+			w,
+			http.StatusInternalServerError,
+			"Unable to crear archivo de video fs",
+			err,
+		)
+		return
+	}
+	defer os.Remove(videoFile.Name())
+	defer videoFile.Close()
 
 	fileExt := getFileExtension(ct)
 	key := make([]byte, 32)
 	rand.Read(key)
 	// aspect, err := GetVideoAspectRatio(fmt.Sprintf("%s/tubely.upload.mp4", os.TempDir()))
-	aspect, err := GetVideoAspectRatio(videoFile.Name())
+	aspect, err := getVideoAspectRatio(videoFile.Name())
 	if err != nil {
 		slog.Warn("Get Aspect", "error", err)
 	}
@@ -123,10 +142,15 @@ func (cfg *apiConfig) handlerUploadVideo(w http.ResponseWriter, r *http.Request)
 	}
 	cfg.s3Client.PutObject(r.Context(), &objectParams)
 
+	// videoURL := fmt.Sprintf(
+	// 	"https://%s.s3.%s.amazonaws.com/%s",
+	// 	cfg.s3Bucket,
+	// 	cfg.s3Region,
+	// 	videoFileName,
+	// )
 	videoURL := fmt.Sprintf(
-		"https://%s.s3.%s.amazonaws.com/%s",
+		"%s,%s",
 		cfg.s3Bucket,
-		cfg.s3Region,
 		videoFileName,
 	)
 	videoMetadata.VideoURL = &videoURL
@@ -142,6 +166,16 @@ func (cfg *apiConfig) handlerUploadVideo(w http.ResponseWriter, r *http.Request)
 		return
 	}
 
+	videoMetadata, err = cfg.dbVideoToSignedVideo(videoMetadata)
+	if err != nil {
+		respondWithError(
+			w,
+			http.StatusInternalServerError,
+			"Unable to crear signed URL en S3",
+			err,
+		)
+		return
+	}
 	respondWithJSON(w, http.StatusOK, videoMetadata)
 }
 
