@@ -142,17 +142,18 @@ func (cfg *apiConfig) handlerUploadVideo(w http.ResponseWriter, r *http.Request)
 	}
 	cfg.s3Client.PutObject(r.Context(), &objectParams)
 
-	// videoURL := fmt.Sprintf(
-	// 	"https://%s.s3.%s.amazonaws.com/%s",
-	// 	cfg.s3Bucket,
-	// 	cfg.s3Region,
-	// 	videoFileName,
-	// )
 	videoURL := fmt.Sprintf(
-		"%s,%s",
-		cfg.s3Bucket,
+		"%s/%s",
+		// cfg.s3Bucket,
+		// cfg.s3Region,
+		cfg.s3CfDistribution,
 		videoFileName,
 	)
+	// videoURL := fmt.Sprintf(
+	// 	"%s,%s",
+	// 	cfg.s3Bucket,
+	// 	videoFileName,
+	// )
 	videoMetadata.VideoURL = &videoURL
 
 	err = cfg.db.UpdateVideo(videoMetadata)
@@ -166,16 +167,16 @@ func (cfg *apiConfig) handlerUploadVideo(w http.ResponseWriter, r *http.Request)
 		return
 	}
 
-	videoMetadata, err = cfg.dbVideoToSignedVideo(videoMetadata)
-	if err != nil {
-		respondWithError(
-			w,
-			http.StatusInternalServerError,
-			"Unable to crear signed URL en S3",
-			err,
-		)
-		return
-	}
+	// videoMetadata, err = cfg.dbVideoToSignedVideo(videoMetadata)
+	// if err != nil {
+	// 	respondWithError(
+	// 		w,
+	// 		http.StatusInternalServerError,
+	// 		"Unable to crear signed URL en S3",
+	// 		err,
+	// 	)
+	// 	return
+	// }
 	respondWithJSON(w, http.StatusOK, videoMetadata)
 }
 
